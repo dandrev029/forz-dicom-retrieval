@@ -2,54 +2,87 @@
 
 A Python utility for scanning and retrieving patient DICOM images from Shinagawa Healthcare's NAS backup storage used by the FORZ PACS system.
 
-## Background
+## Quick Start (First-Time Setup)
 
-FORZ PACS stores mammography and other DICOM study images on NAS#1 (`\\192.168.72.18\ExcelCreateBackups\FORZ2FILE\`) with automatic daily backups. NAS#2 (`\\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\`) holds a manual copy with a different folder hierarchy.
+Follow these steps **once per PC** to get the tool running.
 
-The folder structure is:
+### Step 1 — Install Python
 
-```
-NAS (hierarchical):
-└── YYYY FILES/
-    └── MMM/           (JAN, FEB, MAR, ...)
-        └── MMDDYYYY/  (e.g., 05022025)
-            └── XXXX/  (patient subfolder, e.g., 1339)
-                └── *.dcm files
+Check if Python is already installed:
 
-NAS (flat — NAS#1 auto-backup):
-└── MMDDYYYY/          (e.g., 05022025)
-    └── XXXX/          (patient subfolder)
-        └── *.dcm files
+```powershell
+py --version
 ```
 
-## Features
+If it shows **Python 3.8 or higher**, skip to **Step 2**.
 
-- **Scan** any FORZ NAS folder and list all patients with metadata
-- **Search** by patient ID or name
-- **Progress indicator** for large folder sets (100+ subfolders)
-- Uses `pydicom` to read DICOM headers without loading pixel data (fast)
+If you get an error, download and install Python from:
+https://www.python.org/downloads/
 
-## Requirements
+> ⚠️ During installation, check the box **"Add python.exe to PATH"** before clicking Install.
 
-- Python 3.8+
-- `pydicom` (`pip install pydicom`)
-- Network access to the NAS shares
+After installing, **close and reopen PowerShell**, then verify:
+
+```powershell
+py --version
+```
+
+### Step 2 — Install pydicom
+
+```powershell
+py -m pip install pydicom
+```
+
+> ⚠️ Use `py -m pip` — do NOT use bare `pip` (it may not be in PATH).
+
+### Step 3 — Download the Script
+
+Open PowerShell and run these commands **one at a time**:
+
+```powershell
+cd "$env:USERPROFILE\Desktop"
+```
+
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/dandrev029/forz-dicom-retrieval/main/scan_dicom.py" -OutFile "scan_dicom.py"
+```
+
+This saves `scan_dicom.py` to your **Desktop**.
+
+### Step 4 — Verify It Works
+
+```powershell
+cd "$env:USERPROFILE\Desktop"
+py scan_dicom.py
+```
+
+You should see:
+
+```
+Usage: py scan_dicom.py <NAS_folder_path> [patient_id_or_name]
+```
+
+✅ **Setup complete!** You're ready to scan NAS folders.
+
+---
 
 ## Usage
 
-### Scan all patients in a daily folder
+### Scan All Patients in a Daily Folder
 
 ```powershell
 py scan_dicom.py "\\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\2025 FILES\MAY\05022025"
 ```
 
-### Search for a specific patient
+### Search for a Specific Patient by ID or Name
 
 ```powershell
 py scan_dicom.py "\\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\2025 FILES\MAY\05022025" 006710
 ```
 
-### Example output
+> 💡 You can search by **patient ID** (e.g., `006710`) or **patient name** (e.g., `MONCADA`).
+
+### Example Output
 
 ```
 Scanning: \\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\2025 FILES\MAY\05022025
@@ -69,20 +102,73 @@ Subfolder   Patient Name                        ID         Date         Time
 ======================================================================
 ```
 
-## Network Context
+---
 
-| Device | IP | Share |
-|--------|-----|-------|
+## Common NAS Paths
+
+### NAS#2 (Manual Backup — Hierarchical)
+
+```
+\\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\
+```
+
+| Year | Path Example |
+|------|-------------|
+| 2025 | `\\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\2025 FILES\MAY\05022025` |
+| 2024 | `\\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\2024 FILES\JUL\07242024` |
+| 2023 | `\\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\2023 FILES\JAN\01152023` |
+
+### NAS#1 (Auto-Backup — Flat)
+
+```
+\\192.168.72.18\ExcelCreateBackups\FORZ2FILE\
+```
+
+NAS#1 uses flat `MMDDYYYY` folders directly (no year/month hierarchy).
+
+---
+
+## How It Works
+
+The tool reads DICOM file headers **without loading pixel data**, so it's fast even on large folders. For each patient subfolder, it reads the first `.dcm` file and extracts:
+
+- **Patient Name** (as stored in the DICOM header — use `^` separators)
+- **Patient ID**
+- **Study Date**
+- **Study Time**
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `can't open file 'scan_dicom.py'` | You're not in the Desktop folder. Run `cd "$env:USERPROFILE\Desktop"` first |
+| `No module named 'pydicom'` | Run `py -m pip install pydicom` |
+| `'py' is not recognized` | Python isn't installed or not in PATH. Reinstall Python with "Add to PATH" checked |
+| `Access is denied` on NAS path | Make sure you're connected to the Shinagawa network (on-site or VPN) |
+| Script hangs on large folders | Normal for 200+ subfolders — wait for the progress indicator to finish |
+
+---
+
+## Network Reference
+
+| Device | IP | Share Path |
+|--------|-----|-----------|
 | NAS#1 | 192.168.72.18 | `\\192.168.72.18\ExcelCreateBackups\FORZ2FILE\` |
 | NAS#2 | 192.168.72.28 | `\\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\` |
-| FORZ PACS VM | 192.168.72.6 | D:\FORZ\Images (migration source) |
+| FORZ PACS VM | 192.168.72.6 | `D:\FORZ\Images` (migration source) |
+
+---
 
 ## DICOM Workflow
 
-1. **Scan** NAS folder with this tool to locate patient images
-2. **Verify** images in MicroDicom Viewer
-3. **Restore** to FORZ PACS
-4. **Approval Export** to DAIDAI system
+1. **Scan** — Run this tool to locate patient images on the NAS
+2. **Verify** — Open the patient subfolder in MicroDicom Viewer
+3. **Restore** — Restore the images into FORZ PACS
+4. **Export** — Approval Export to DAIDAI system
+
+---
 
 ## License
 
