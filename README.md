@@ -64,23 +64,102 @@ Usage: py scan_dicom.py <NAS_folder_path> [patient_id_or_name]
 
 ✅ **Setup complete!** You're ready to scan NAS folders.
 
----
-
 ## Usage
 
-### Scan All Patients in a Daily Folder
+### Step 1 — Scan All Patients in a Daily Folder
+
+Before searching, run a full scan to see all patients in the folder:
 
 ```powershell
 py scan_dicom.py "\\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\2025 FILES\MAY\05022025"
 ```
 
-### Search for a Specific Patient by ID or Name
+### Step 2 — Search for a Specific Patient
 
+The tool supports **flexible search** — you can search by **patient ID**, **patient name**, or **partial matches** of either. The search is **case-insensitive** and works as a **substring match**, so you don't need the exact full value.
+
+#### 🔍 How Search Works
+
+```
+py scan_dicom.py "<NAS_PATH>" <search_term>
+```
+
+- The second argument (`<search_term>`) is searched against **both** Patient ID **and** Patient Name
+- **Partial matches work** — you can type just part of the ID or name
+- **Case doesn't matter** — `moncada`, `MONCADA`, and `Moncada` all work the same
+- **Multiple results** — if the search term matches multiple patients, all matches are shown
+
+---
+
+#### 📋 Search Examples
+
+**By Full Patient ID:**
 ```powershell
 py scan_dicom.py "\\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\2025 FILES\MAY\05022025" 006710
 ```
+→ Finds: `MONCADA^FRANCO^^BELLA` (ID: 006710)
 
-> 💡 You can search by **patient ID** (e.g., `006710`) or **patient name** (e.g., `MONCADA`).
+**By Partial Patient ID:**
+```powershell
+py scan_dicom.py "\\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\2025 FILES\MAY\05022025" 0149
+```
+→ Finds: ALL patients whose ID contains `0149` (e.g., 014948, 014952, 014946, etc.)
+
+**By Last Name:**
+```powershell
+py scan_dicom.py "\\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\2025 FILES\MAY\05022025" DELOS REYES
+```
+→ Finds: all patients with "DELOS REYES" in their name
+
+**By Partial Name:**
+```powershell
+py scan_dicom.py "\\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\2025 FILES\MAY\05022025" MONC
+```
+→ Finds: `MONCADA` (partial match works)
+
+**By First Name:**
+```powershell
+py scan_dicom.py "\\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\2025 FILES\MAY\05022025" MARK
+```
+→ Finds: all patients named MARK (e.g., ABUYUAN^MARK)
+
+**By Any Name Fragment:**
+```powershell
+py scan_dicom.py "\\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\2025 FILES\MAY\05022025" SONYA
+```
+→ Finds: `VASQUEZ^-^RODRIGUEZ^^SONIA` (SONIA matches SONYA? No — exact substring only)
+→ Actually: finds nothing if SONYA isn't in the DICOM header. Use `SONIA` instead.
+
+---
+
+#### ⚡ Quick Reference Table
+
+| What you know | What to type | Example |
+|---------------|-------------|---------|
+| Full Patient ID | The complete ID | `006710` |
+| Partial Patient ID | Any part of the ID | `0149` or `6710` |
+| Last name | The last name | `MONCADA` |
+| First name | The first name | `MARK` |
+| Full name | Last + First | `MONCADA MARK` |
+| Partial name | Any fragment | `MONC` or `DELOS` |
+
+---
+
+#### 💡 Pro Tips
+
+1. **If you don't know the date**, scan a broader range — check the year folder first:
+   ```powershell
+   py scan_dicom.py "\\192.168.72.28\ExcelCreates\NAS 1 FORZ BACKUP\FORZ2FILE\2025 FILES\MAY"
+   ```
+
+2. **If you get too many results**, add more characters to narrow it down:
+   - `0149` → many results
+   - `01494` → fewer results
+   - `014948` → exact match
+
+3. **DICOM names use `^` separators**: `LAST^FIRST^MIDDLE^SUFFIX`. When searching, ignore the `^` — just type the name naturally.
+
+---
 
 ### Example Output
 
