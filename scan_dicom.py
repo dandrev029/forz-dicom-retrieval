@@ -47,8 +47,10 @@ def scan_folder(root_path, target_patient="", target_bodypart=""):
                 time = str(ds.get("StudyTime", "N/A"))[:5]
 
                 # --- NEW: Body Part fields ---
-                bp   = str(ds.get((0x0018, 0x0015), "N/A"))  # BodyPartExamined
-                desc = str(ds.get((0x0008, 0x1030), "N/A"))    # StudyDescription
+                bp_elem = ds.get((0x0018, 0x0015))
+                bp = str(bp_elem.value) if bp_elem is not None else "N/A"
+                desc_elem = ds.get((0x0008, 0x1030))
+                desc = str(desc_elem.value) if desc_elem is not None else "N/A"
 
                 # Combine: prefer BodyPartExamined, fallback to StudyDescription
                 bp_display = bp if bp != "N/A" else desc

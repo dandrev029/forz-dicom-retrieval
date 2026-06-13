@@ -156,7 +156,7 @@ $lg = "$env:USERPROFILE\Desktop\FORZ_Log.txt"
 if ($bp) { "Body Part Filter: "+$bp | Out-File $lg -Append }
 "" | Out-File $lg -Append
 
-$ts=0; $cp=0
+$ts=[long]0; $cp=0
 foreach ($fn in $folds) {
   $src = "$fp\$fn"
   $dst = "$df\${fn}_${pt}"
@@ -167,7 +167,7 @@ foreach ($fn in $folds) {
   }
   Write-Host ("  Copying $fn...") -NoNewline
   robocopy $src $dst /E /R:2 /W:3 /NP /NDL /NJH /NJS /LOG+:$lg > $null
-  $sz = (Get-ChildItem $dst -Recurse -File | Measure-Object -Property Length -Sum).Sum
+  $sz = [long](Get-ChildItem $dst -Recurse -File | Measure-Object -Property Length -Sum).Sum
   $ts+=$sz; $cp++
   Write-Host (" OK "+[math]::Round($sz/1MB,1)+" MB") -ForegroundColor Green
 }
