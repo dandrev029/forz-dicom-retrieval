@@ -2,6 +2,15 @@
 
 A Python utility for scanning and retrieving patient DICOM images from Shinagawa Healthcare's NAS backup storage used by the FORZ PACS system.
 
+> ## 🆕 v2 — Body Part / Study Type Filter
+>
+> The v2 branch adds a **body part filter** — narrow your search by anatomical region
+> (CHEST, ABDOMEN, HEAD, LUMBAR SPINE, etc.) using the `BodyPartExamined` and
+> `StudyDescription` DICOM tags. Bundled with a PowerShell interactive retrieval
+> wizard for one-click copy.
+>
+> **Branch:** `v2` — see `forz_retrieve.bat` + `forz_retrieve.ps1` for the full tool.
+
 ## Quick Start (First-Time Setup)
 
 Follow these steps **once per PC** to get the tool running.
@@ -66,7 +75,37 @@ Usage: py scan_dicom.py <NAS_folder_path> [patient_id_or_name]
 
 ## Usage
 
-### Step 1 — Scan All Patients in a Daily Folder
+### v2 — New: Body Part Filter
+
+Added a **3rd argument** to filter by body part / study type:
+
+```powershell
+py scan_dicom.py "<NAS_PATH>" <search_term> <body_part>
+```
+
+The body part is checked against both `BodyPartExamined` and `StudyDescription` DICOM tags. Partial, case-insensitive matching — `"CHEST"` matches `"CHEST"`, `"CT CHEST W CONTRAST"`, `"CHEST PA"`, etc.
+
+**Examples:**
+
+```powershell
+# Find VALDEZ with CHEST studies only
+py scan_dicom.py "\\NAS\FORZ2FILE\06052026" VALDEZ CHEST
+
+# List ALL abdomen studies on a given date (no patient filter)
+py scan_dicom.py "\\NAS\FORZ2FILE\06052026" "" ABDOMEN
+
+# Find KNEE studies for patient 006710
+py scan_dicom.py "\\NAS\FORZ2FILE\06052026" 006710 KNEE
+```
+
+### Bundled PowerShell Wizard
+
+The `v2` branch includes `forz_retrieve.ps1` + `forz_retrieve.bat` — an interactive wizard that walks through NAS selection, date, body part, patient, and output path. Double-click `forz_retrieve.bat` to start.
+
+Script arguments are now:
+```powershell
+py scan_dicom.py <NAS_folder_path> [patient_id_or_name] [body_part]
+```
 
 Before searching, run a full scan to see all patients in the folder:
 
@@ -215,6 +254,8 @@ The tool reads DICOM file headers **without loading pixel data**, so it's fast e
 - **Patient ID**
 - **Study Date**
 - **Study Time**
+- **Body Part Examined** — from tag `(0018,0015)`, used for body part filter
+- **Study Description** — from tag `(0008,1030)`, also searched by body part filter
 
 ---
 
@@ -222,7 +263,7 @@ The tool reads DICOM file headers **without loading pixel data**, so it's fast e
 
 | Problem | Solution |
 |---------|----------|
-| `can't open file 'scan_dicom.py'` | You're not in the Desktop folder. Run `cd "$env:USERPROFILE\Desktop"` first |
+| `can't open file 'scan_dicom.py'` | You're not in the right folder. Run `cd Desktop` first, or use the bundled `forz_retrieve.bat` |
 | `No module named 'pydicom'` | Run `py -m pip install pydicom` |
 | `'py' is not recognized` | Python isn't installed or not in PATH. Reinstall Python with "Add to PATH" checked |
 | `Access is denied` on NAS path | Make sure you're connected to the Shinagawa network (on-site or VPN) |
