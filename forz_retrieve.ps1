@@ -1,5 +1,5 @@
 ﻿# FORZ Patient DICOM Retrieval - Shinagawa Healthcare
-# Modified: Added body part / study type filter
+# v2.1 - Preview ALL studies, manually pick which to copy
 
 # --- Config ---
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -45,47 +45,20 @@ $d = Read-Host "MMDDYYYY (e.g., 06052026)"
 $fp = "$p\$d"
 Write-Host "  Path: $fp"
 
-# --- STEP 3: Body Part (NEW) ---
+# --- STEP 3: Patient ---
 Write-Host ""
-Write-Host "STEP 3: Body Part / Study Type" -ForegroundColor Yellow
-Write-Host "  (Press Enter to skip - find ALL body parts)"
-Write-Host "  Common options:"
-Write-Host "    [1] CHEST              [2] ABDOMEN"
-Write-Host "    [3] HEAD               [4] LUMBAR SPINE"
-Write-Host "    [5] CERVICAL SPINE     [6] THORACIC SPINE"
-Write-Host "    [7] KNEE               [8] PELVIS"
-Write-Host "    [9] WHOLE BODY         [0] Type custom"
-$bp_choice = Read-Host "Enter (0-9, or Enter to skip)"
-switch ($bp_choice) {
-  "1"  { $bp = "CHEST" }
-  "2"  { $bp = "ABDOMEN" }
-  "3"  { $bp = "HEAD" }
-  "4"  { $bp = "LUMBAR SPINE" }
-  "5"  { $bp = "CERVICAL SPINE" }
-  "6"  { $bp = "THORACIC SPINE" }
-  "7"  { $bp = "KNEE" }
-  "8"  { $bp = "PELVIS" }
-  "9"  { $bp = "WHOLE BODY" }
-  "0"  { $bp = Read-Host "Enter body part/study name" }
-  default { $bp = "" }
-}
-if ($bp) { Write-Host "  Filtering by: $bp" -ForegroundColor Green }
-else { Write-Host "  No filter - will find ALL body parts" -ForegroundColor Yellow }
-
-# --- STEP 4: Patient ---
-Write-Host ""
-Write-Host "STEP 4: Patient" -ForegroundColor Yellow
+Write-Host "STEP 3: Patient" -ForegroundColor Yellow
 $pt = (Read-Host "Name or ID (required)").Trim()
 if ([string]::IsNullOrWhiteSpace($pt)) { Write-Host "Required!" -ForegroundColor Red; Read-Host; exit }
 
-# --- STEP 5: Output ---
+# --- STEP 4: Output ---
 Write-Host ""
-Write-Host "STEP 5: Output folder" -ForegroundColor Yellow
+Write-Host "STEP 4: Output folder" -ForegroundColor Yellow
 $df = Read-Host "Enter for default (C:\FORZEXTRACT)"
 if ([string]::IsNullOrWhiteSpace($df)) { $df = "C:\FORZEXTRACT" }
 if (-not (Test-Path $df)) { New-Item -ItemType Directory -Path $df -Force | Out-Null }
 
-# --- Check Python script (bundled copy first, then Desktop fallback) ---
+# --- Check Python script ---
 $script = $PythonScript
 if (-not (Test-Path $script)) {
   $script = "$env:USERPROFILE\Desktop\scan_dicom.py"
@@ -110,39 +83,97 @@ Show-Banner
 Write-Host "  NAS:      $n"
 Write-Host "  Path:     $fp"
 Write-Host "  Patient:  $pt"
-if ($bp) { Write-Host "  Body Part:$bp" }
 Write-Host "  Output:   $df"
 Write-Host "  Script:   $script"
 Write-Host ""
 
-# --- Scan ---
+# --- Scan (NO filter - show ALL studies for patient) ---
 $count = (Get-ChildItem $fp -Directory).Count
-Write-Host "Scanning $count folders..."
+Write-Host "Scanning $count folders for patient '$pt'..."
 Write-Host ""
 
-# Build arguments: path, patient, [body_part]
-$py_args = @($fp, $pt)
-if ($bp) { $py_args += $bp }
-$out = py $script @py_args 2>&1 | Out-String
+$out = py $script $fp $pt 2>&1 | Out-String
 Write-Host $out
 
-# --- Parse FOUND results (from text output, backward-compatible) ---
-$folds = @()
-$out -split "`n" | ForEach-Object {
-  if ($_ -match "FOUND in folder (\d+):") {
-    $fn = $matches[1]
-    if ($fn -notin $folds) { $folds += $fn }
+# --- Parse JSON output from Python (machine-readable section) ---
+$jsonStart = $out.IndexOf("---JSON-START---")
+$jsonEnd   = $out.IndexOf("---JSON-END---")
+$allStudies = @()
+
+if ($jsonStart -ge 0 -and $jsonEnd -gt $jsonStart) {
+  $jsonRaw = $out.Substring($jsonStart + 16, $jsonEnd - $jsonStart - 16).Trim()
+  try {
+    $allStudies = $jsonRaw | ConvertFrom-Json
+  } catch {
+    Write-Host "Warning: Could not parse JSON results" -ForegroundColor Yellow
   }
 }
 
-if ($folds.Count -eq 0) {
-  Write-Host "No results for '$pt'" -ForegroundColor Red
-  if ($bp) { Write-Host "  with body part filter: $bp" -ForegroundColor Yellow }
-  Write-Host "Try a different date, NAS, or remove the body part filter." -ForegroundColor Yellow
+if ($allStudies.Count -eq 0) {
+  Write-Host "No studies found for '$pt' on this date." -ForegroundColor Red
+  Write-Host "Try a different date or NAS." -ForegroundColor Yellow
   Read-Host; exit
 }
 
-Write-Host ("Found " + $folds.Count + " matching folder(s): " + ($folds -join ", ")) -ForegroundColor Green
+# --- Show study picker ---
+Write-Host ("="*60) -ForegroundColor Cyan
+Write-Host "  STUDIES FOUND FOR: $pt" -ForegroundColor Cyan
+Write-Host ("="*60) -ForegroundColor Cyan
+Write-Host ""
+
+$i = 1
+$studyMap = @{}
+foreach ($s in $allStudies) {
+  $num = $i.ToString("00")
+  $fn  = $s.folder
+  $desc = $s.study_description -replace "null|N/A", "-"
+  $bp   = $s.body_part -replace "null|N/A", "-"
+  $sz   = if ($s.size_mb) { $s.size_mb.ToString("F1") + " MB" } else { "?" }
+
+  Write-Host ("  [{0}] Folder {1}" -f $num, $fn) -ForegroundColor Yellow
+  Write-Host ("      Study: {0}" -f $desc)
+  Write-Host ("      Body:  {0}" -f $bp)
+  Write-Host ("      Size:  {0}" -f $sz)
+  Write-Host ""
+
+  $studyMap[$num] = $fn
+  $i++
+}
+
+# --- Ask which to copy ---
+Write-Host "Which folders to copy?" -ForegroundColor Yellow
+Write-Host "  Examples: 01,03,05  or  01-05  or  ALL"
+$pick = Read-Host "Enter choices"
+
+# Parse selection
+$selected = @()
+if ($pick.ToUpper() -eq "ALL") {
+  $selected = $studyMap.Values | ForEach-Object { $_ }
+} else {
+  # Support comma-separated and ranges (01-05)
+  $pick -split "," | ForEach-Object {
+    $part = $_.Trim()
+    if ($part -match "^(\d+)-(\d+)$") {
+      $start = [int]$matches[1]
+      $end   = [int]$matches[2]
+      for ($n = $start; $n -le $end; $n++) {
+        $key = $n.ToString("00")
+        if ($studyMap.ContainsKey($key)) { $selected += $studyMap[$key] }
+      }
+    } else {
+      $key = $part.PadLeft(2, "0")
+      if ($studyMap.ContainsKey($key)) { $selected += $studyMap[$key] }
+    }
+  }
+}
+
+$selected = $selected | Select-Object -Unique
+if ($selected.Count -eq 0) {
+  Write-Host "No valid selections. Exiting." -ForegroundColor Red
+  Read-Host; exit
+}
+
+Write-Host ("Selected " + $selected.Count + " folder(s): " + ($selected -join ", ")) -ForegroundColor Green
 Write-Host ""
 
 # --- COPY ---
@@ -153,14 +184,12 @@ $lg = "$env:USERPROFILE\Desktop\FORZ_Log.txt"
 "FORZ Patient Retrieval" | Out-File $lg
 "Date: "+(Get-Date) | Out-File $lg -Append
 "Patient: "+$pt | Out-File $lg -Append
-if ($bp) { "Body Part Filter: "+$bp | Out-File $lg -Append }
 "" | Out-File $lg -Append
 
 $ts=[long]0; $cp=0
-foreach ($fn in $folds) {
+foreach ($fn in $selected) {
   $src = "$fp\$fn"
   $dst = "$df\${fn}_${pt}"
-  if ($bp) { $dst = "$df\${fn}_${pt}_${bp}" }
   if (Test-Path $dst) {
     Write-Host ("  Skip $fn (exists)") -ForegroundColor Yellow
     continue
@@ -177,7 +206,6 @@ Write-Host ("="*60) -ForegroundColor Cyan
 Write-Host "  RESULTS" -ForegroundColor Cyan
 Write-Host ("="*60) -ForegroundColor Cyan
 Write-Host "  Patient:   $pt"
-if ($bp) { Write-Host "  Body Part: $bp" }
 Write-Host "  Copied:    $cp folder(s)"
 Write-Host "  Total:     "+[math]::Round($ts/1MB,2)+" MB"
 Write-Host "  Saved to:  $df"
@@ -185,7 +213,7 @@ Write-Host "  Log:       $lg" -ForegroundColor Yellow
 Write-Host ""
 
 Get-ChildItem $df -Directory | Where-Object { $_.Name -match $pt } | ForEach-Object {
-  $s = (Get-ChildItem $_.FullName -Recurse -File | Measure-Object -Property Length -Sum).Sum
+  $s = [long](Get-ChildItem $_.FullName -Recurse -File | Measure-Object -Property Length -Sum).Sum
   Write-Host ("  "+$_.Name+" - "+[math]::Round($s/1MB,1)+" MB")
 }
 Write-Host ""

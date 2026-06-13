@@ -70,7 +70,14 @@ def scan_folder(root_path, target_patient="", target_bodypart=""):
                     patient_match = (t in pid.upper()) or (t in name.upper())
 
                 if patient_match and bp_match:
-                    found_results.append((folder.name, name, pid, date, time, bp_display))
+                    # Calculate folder size
+                    try:
+                        all_files = list(folder.rglob("*"))
+                        total_bytes = sum(f.stat().st_size for f in all_files if f.is_file())
+                        size_mb = round(total_bytes / (1024 * 1024), 1)
+                    except:
+                        size_mb = 0
+                    found_results.append((folder.name, name, pid, date, time, bp_display, desc, size_mb))
 
                 break  # First file only per folder
             except:
@@ -83,15 +90,15 @@ def scan_folder(root_path, target_patient="", target_bodypart=""):
     if bodypart:
         print(f"Body part filter: {target_bodypart}")
     print(f"{'='*75}")
-    print(f"{'Folder':<10} {'Patient Name':<30} {'ID':<10} {'Date':<12} {'Time':<8} {'Body Part':<20}")
-    print(f"{'-'*75}")
+    print(f"{'Folder':<10} {'Patient Name':<30} {'ID':<10} {'Date':<12} {'Time':<8} {'Study Description':<30} {'Size':<8}")
+    print(f"{'-'*88}")
     seen = set()
-    for folder, name, pid, date, time, bp in found_results:
+    for folder, name, pid, date, time, bp, desc, smb in found_results:
         key = (folder, pid)
         if key not in seen:
             seen.add(key)
-            print(f"{folder:<10} {name:<30} {pid:<10} {date:<12} {time:<8} {bp:<20}")
-    print(f"{'='*75}\n")
+            print(f"{folder:<10} {name:<30} {pid:<10} {date:<12} {time:<8} {desc:<30} {smb:<8}")
+    print(f"{'='*88}\n")
 
     # Print FOUND lines for PS1 parsing (patient match only, or patient+bodypart)
     if target_patient:
@@ -102,7 +109,7 @@ def scan_folder(root_path, target_patient="", target_bodypart=""):
         else:
             print()
         hit_count = 0
-        for folder, name, pid, date, time, bp in found_results:
+        for folder, name, pid, date, time, bp, desc, smb in found_results:
             if (t in pid.upper()) or (t in name.upper()):
                 print(f"   FOUND in folder {folder}: {name} (ID: {pid})  Body Part: {bp}")
                 hit_count += 1
@@ -115,14 +122,16 @@ def scan_folder(root_path, target_patient="", target_bodypart=""):
 
     # Always emit a machine-readable JSON line at the end for optional PS1 parsing
     json_out = []
-    for folder, name, pid, date, time, bp in found_results:
+    for folder, name, pid, date, time, bp, desc, smb in found_results:
         json_out.append({
             "folder": folder,
             "patient_name": name,
             "patient_id": pid,
             "study_date": date,
             "study_time": time,
-            "body_part": bp
+            "body_part": bp,
+            "study_description": desc,
+            "size_mb": smb
         })
     print(f"\n---JSON-START---")
     print(json.dumps(json_out, indent=2))
