@@ -1,4 +1,4 @@
-# FORZ Patient DICOM Retrieval - Shinagawa Healthcare
+﻿# FORZ Patient DICOM Retrieval - Shinagawa Healthcare
 # Modified: Added body part / study type filter
 
 # --- Config ---
@@ -48,7 +48,7 @@ Write-Host "  Path: $fp"
 # --- STEP 3: Body Part (NEW) ---
 Write-Host ""
 Write-Host "STEP 3: Body Part / Study Type" -ForegroundColor Yellow
-Write-Host "  (Press Enter to skip — find ALL body parts)"
+Write-Host "  (Press Enter to skip - find ALL body parts)"
 Write-Host "  Common options:"
 Write-Host "    [1] CHEST              [2] ABDOMEN"
 Write-Host "    [3] HEAD               [4] LUMBAR SPINE"
@@ -70,7 +70,7 @@ switch ($bp_choice) {
   default { $bp = "" }
 }
 if ($bp) { Write-Host "  Filtering by: $bp" -ForegroundColor Green }
-else { Write-Host "  No filter — will find ALL body parts" -ForegroundColor Yellow }
+else { Write-Host "  No filter - will find ALL body parts" -ForegroundColor Yellow }
 
 # --- STEP 4: Patient ---
 Write-Host ""
